@@ -6,7 +6,15 @@ on:
     # Two runs for resilience (GitHub cron can be delayed or skipped); the second is a no-op if nothing changed.
     - cron: "17 6 * * 1-5"
     - cron: "17 10 * * 1-5"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Backfill this announcement date (YYYY-MM-DD) via the arXiv API; blank = today's RSS"
+        required: false
+  # Backfill on request: push a file requests/backfill.txt with one YYYY-MM-DD per line.
+  push:
+    paths:
+      - "requests/backfill.txt"
 
 permissions:
   contents: write
@@ -19,13 +27,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Fetch today's announcement
-        run: python fetch.py --cats "cs.AI+cs.CL+cs.GT+cs.LG"
+      - name: Fetch
+        env:
+          INPUT_DATE: ${{ github.event.inputs.date }}
+        run: |
+          CATS="cs.AI+cs.CL+cs.GT+cs.LG"
+          if [ -n "$INPUT_DATE" ]; then
+            python fetch.py --cats "$CATS" --date "$INPUT_DATE"
+          elif [ "${{ github.event_name }}" = "push" ] && [ -f requests/backfill.txt ]; then
+            grep -Eo '^[0-9]{4}-[0-9]{2}-[0-9]{2}' requests/backfill.txt | while read d; do
+              python fetch.py --cats "$CATS" --date "$d"; sleep 3
+            done
+            git rm -q requests/backfill.txt
+          else
+            python fetch.py --cats "$CATS"
+          fi
       - name: Commit if changed
         run: |
           git config user.name "arxiv-digest-bot"
           git config user.email "arxiv-digest-bot@users.noreply.github.com"
-          git add data
+          git add -A data requests 2>/dev/null || git add -A data
           if git diff --cached --quiet; then echo "no changes"; exit 0; fi
           git commit -m "data: $(cat data/LATEST)"
+          git pull --rebase -q || true
           git push

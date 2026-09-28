@@ -5,9 +5,11 @@ Writes data/<announce-date>.jsonl (one paper per line) and updates data/LATEST.
 Stdlib only. Exits 0 without writing if the feed is empty (weekends / holidays).
 
 Usage: python fetch.py [--cats cs.AI+cs.CL+cs.GT+cs.LG] [--from-file feed.xml]
+       python fetch.py --date 2026-09-25   # backfill a past announcement via the arXiv API
 """
-import argparse, email.utils, json, pathlib, re, sys, time, urllib.request
+import argparse, datetime as dt, email.utils, json, pathlib, re, sys, time, urllib.request
 import xml.etree.ElementTree as ET
+from zoneinfo import ZoneInfo
 
 NS = {"arxiv": "http://arxiv.org/schemas/atom", "dc": "http://purl.org/dc/elements/1.1/"}
 UA = "arxiv-digest/1.0 (personal daily digest; mailto:andyliu@cs.cmu.edu)"
@@ -67,24 +69,99 @@ def parse(xml_bytes):
     return day, list(papers.values())
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--cats", default="cs.AI+cs.CL+cs.GT+cs.LG")
-    ap.add_argument("--from-file")
-    ap.add_argument("--out", default="data")
-    a = ap.parse_args()
-    raw = pathlib.Path(a.from_file).read_bytes() if a.from_file else download(f"https://rss.arxiv.org/rss/{a.cats}")
-    day, papers = parse(raw)
-    if not papers:
-        print("feed empty (no announcement today); nothing written")
-        return
-    out = pathlib.Path(a.out)
+ATOM = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom",
+        "os": "http://a9.com/-/spec/opensearch/1.1/"}
+
+
+def prev_weekday(d):
+    d -= dt.timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= dt.timedelta(days=1)
+    return d
+
+
+def backfill(day_str, cats, parse_only=None):
+    """Approximate a past announcement via the arXiv API.
+
+    The mailing announced on weekday D contains papers submitted between 14:00 ET on the
+    weekday before the previous weekday and 14:00 ET on the previous weekday. Papers are
+    matched on their v1 submission date, so replacements are excluded. A paper whose
+    primary category is in `cats` is labelled "new"; otherwise it is labelled "cross".
+    Papers that arXiv held or delayed are missed.
+    """
+    et = ZoneInfo("America/New_York")
+    day = dt.date.fromisoformat(day_str)
+    end_d = prev_weekday(day)
+    start_d = prev_weekday(end_d)
+    to_utc = lambda d: dt.datetime.combine(d, dt.time(14, 0), et).astimezone(dt.timezone.utc).strftime("%Y%m%d%H%M")
+    catq = "+OR+".join(f"cat:{c}" for c in cats.split("+"))
+    q = f"({catq})+AND+submittedDate:[{to_utc(start_d)}+TO+{to_utc(end_d)}]"
+    q = q.replace("(", "%28").replace(")", "%29")
+    wanted = set(cats.split("+"))
+    papers, start, total = {}, 0, None
+    while total is None or start < total:
+        url = (f"https://export.arxiv.org/api/query?search_query={q}&start={start}&max_results=500"
+               f"&sortBy=submittedDate&sortOrder=ascending")
+        raw = parse_only if parse_only is not None else download(url)
+        root = ET.fromstring(raw)
+        total = int(root.findtext("os:totalResults", namespaces=ATOM) or 0)
+        entries = root.findall("a:entry", ATOM)
+        for e in entries:
+            m = re.search(r"(\d{4}\.\d{4,5})", e.findtext("a:id", namespaces=ATOM) or "")
+            if not m:
+                continue
+            pid = m.group(1)
+            prim = e.find("arxiv:primary_category", ATOM)
+            prim = prim.get("term") if prim is not None else ""
+            cats_e = [c.get("term") for c in e.findall("a:category", ATOM)]
+            papers[pid] = {
+                "id": pid,
+                "url": f"https://arxiv.org/abs/{pid}",
+                "title": re.sub(r"\s+", " ", (e.findtext("a:title", namespaces=ATOM) or "").strip()),
+                "authors": ", ".join(a.findtext("a:name", namespaces=ATOM) or "" for a in e.findall("a:author", ATOM)),
+                "categories": cats_e,
+                "announce_type": "new" if prim in wanted else "cross",
+                "abstract": re.sub(r"\s+", " ", (e.findtext("a:summary", namespaces=ATOM) or "").strip()),
+            }
+        if parse_only is not None or not entries:
+            break
+        start += len(entries)
+        time.sleep(3)  # arXiv API etiquette
+    print(f"API: totalResults={total}, parsed={len(papers)}")
+    return day_str, list(papers.values())
+
+
+def write(day, papers, out):
+    out = pathlib.Path(out)
     out.mkdir(exist_ok=True)
     path = out / f"{day}.jsonl"
     with path.open("w") as f:
         for p in sorted(papers, key=lambda p: p["id"]):
             f.write(json.dumps(p, ensure_ascii=False) + "\n")
-    (out / "LATEST").write_text(day + "\n")
+    latest = out / "LATEST"
+    cur = latest.read_text().strip() if latest.exists() else ""
+    if day > cur:
+        latest.write_text(day + "\n")
+    return path
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--cats", default="cs.AI+cs.CL+cs.GT+cs.LG")
+    ap.add_argument("--from-file")
+    ap.add_argument("--date", help="backfill a past announcement date (YYYY-MM-DD) via the arXiv API")
+    ap.add_argument("--out", default="data")
+    a = ap.parse_args()
+    if a.date:
+        raw = pathlib.Path(a.from_file).read_bytes() if a.from_file else None
+        day, papers = backfill(a.date, a.cats, parse_only=raw)
+    else:
+        raw = pathlib.Path(a.from_file).read_bytes() if a.from_file else download(f"https://rss.arxiv.org/rss/{a.cats}")
+        day, papers = parse(raw)
+    if not papers:
+        print("no papers (no announcement today?); nothing written")
+        return
+    path = write(day, papers, a.out)
     counts = {}
     for p in papers:
         counts[p["announce_type"]] = counts.get(p["announce_type"], 0) + 1
