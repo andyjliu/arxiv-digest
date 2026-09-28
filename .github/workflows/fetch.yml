@@ -33,17 +33,17 @@ jobs:
           mkdir -p logs
           {
           echo "run: $GITHUB_EVENT_NAME $(date -u)"
-          for u in \
-            "https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG" \
-            "https://export.arxiv.org/api/query?search_query=cat:cs.AI&max_results=1" \
-            "https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=1" \
-            "https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29&max_results=1" \
-            "https://export.arxiv.org/api/query?search_query=submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1" \
-            "https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29+AND+submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1"; do
+          B="https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending"
+          for u in "$B&max_results=1" "$B&start=0&max_results=1" "$B&max_results=50" "$B&max_results=100" "$B&max_results=200" "$B&max_results=300" "$B&start=300&max_results=100"; do
             echo "== curl $u"
-            curl -g -sS -o /tmp/body -w "status=%{http_code}\n" -A "arxiv-digest/1.1 (personal research digest)" "$u"
-            head -c 200 /tmp/body; echo
+            curl -g -sS -o /tmp/body -w "status=%{http_code} bytes=%{size_download}\n" -A "arxiv-digest/1.1 (personal research digest)" "$u"
+            sleep 3
           done
+          echo "== python urllib max_results=1"
+          python -c "import fetch; print(len(fetch.download('$B&max_results=1', tries=1)))" 2>&1 | grep -Ev 'headers:|body:' || true
+          sleep 3
+          echo "== python urllib max_results=100"
+          python -c "import fetch; print(len(fetch.download('$B&max_results=100', tries=1)))" 2>&1 | grep -Ev 'headers:|body:' || true
           } 2>&1 | tee logs/diag.txt
       - name: Fetch
         env:
