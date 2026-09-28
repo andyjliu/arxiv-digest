@@ -3,9 +3,11 @@ name: fetch-arxiv
 on:
   schedule:
     # arXiv mailings post ~20:00 ET Sun-Thu; the RSS feed for them is built ~00:00 ET Mon-Fri.
-    # Two runs for resilience (GitHub cron can be delayed or skipped); the second is a no-op if nothing changed.
-    - cron: "17 6 * * 1-5"
-    - cron: "17 10 * * 1-5"
+    # Several runs for resilience (GitHub cron is often delayed or skipped); later runs rewrite the same file.
+    - cron: "17 5 * * 1-5"
+    - cron: "17 7 * * 1-5"
+    - cron: "17 9 * * 1-5"
+    - cron: "47 10 * * 1-5"
   workflow_dispatch:
     inputs:
       date:
