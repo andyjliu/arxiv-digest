@@ -5,7 +5,7 @@ Writes data/<announce-date>.jsonl (one paper per line) and updates data/LATEST.
 Stdlib only. Exits 0 without writing if the feed is empty (weekends / holidays).
 
 Usage: python fetch.py [--cats cs.AI+cs.CL+cs.GT+cs.LG] [--from-file feed.xml]
-       python fetch.py --date 2026-09-25   # backfill a past announcement via the arXiv API
+       python fetch.py --listing [--expect 2026-09-25]   # latest announcement from arxiv.org/list/<cat>/new
 """
 import argparse, datetime as dt, email.utils, json, pathlib, re, sys, time, urllib.error, urllib.parse, urllib.request
 import xml.etree.ElementTree as ET
@@ -77,79 +77,91 @@ def parse(xml_bytes):
     return day, list(papers.values())
 
 
-ATOM = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom",
-        "os": "http://a9.com/-/spec/opensearch/1.1/"}
+MONTHS = {m: i for i, m in enumerate(["january", "february", "march", "april", "may", "june", "july", "august",
+                                      "september", "october", "november", "december"], 1)}
 
 
-def prev_weekday(d):
-    d -= dt.timedelta(days=1)
-    while d.weekday() >= 5:
-        d -= dt.timedelta(days=1)
-    return d
+def _text(html):
+    html = re.sub(r"<[^>]+>", " ", html)
+    for k, v in {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " "}.items():
+        html = html.replace(k, v)
+    return re.sub(r"\s+([,;:.])", r"\1", re.sub(r"\s+", " ", html)).strip()
 
 
-def _entry(e, wanted):
-    m = re.search(r"(\d{4}\.\d{4,5})", e.findtext("a:id", namespaces=ATOM) or "")
-    if not m:
-        return None, None
-    prim = e.find("arxiv:primary_category", ATOM)
-    prim = prim.get("term") if prim is not None else ""
-    published = dt.datetime.fromisoformat((e.findtext("a:published", namespaces=ATOM) or "").replace("Z", "+00:00"))
-    return published, {
-        "id": m.group(1),
-        "url": f"https://arxiv.org/abs/{m.group(1)}",
-        "title": re.sub(r"\s+", " ", (e.findtext("a:title", namespaces=ATOM) or "").strip()),
-        "authors": ", ".join(a.findtext("a:name", namespaces=ATOM) or "" for a in e.findall("a:author", ATOM)),
-        "categories": [c.get("term") for c in e.findall("a:category", ATOM)],
-        "announce_type": "new" if prim in wanted else "cross",
-        "abstract": re.sub(r"\s+", " ", (e.findtext("a:summary", namespaces=ATOM) or "").strip()),
-    }
-
-
-def backfill(day_str, cats, parse_only=None, page=300, max_pages=40):
-    """Approximate a past announcement via the arXiv API.
-
-    The mailing announced on weekday D contains papers submitted between 14:00 ET on the
-    weekday before the previous weekday and 14:00 ET on the previous weekday. arXiv's CDN
-    rejects submittedDate range queries (HTTP 406), so instead each category is listed
-    newest-first and paged back until past the window, keeping papers whose v1 submission
-    time falls inside it (so replacements are excluded). A paper whose primary category is in
-    `cats` is labelled "new", otherwise "cross". Papers arXiv held or delayed are missed.
-    """
-    et = ZoneInfo("America/New_York")
-    day = dt.date.fromisoformat(day_str)
-    end_d = prev_weekday(day)
-    start_d = prev_weekday(end_d)
-    lo = dt.datetime.combine(start_d, dt.time(14, 0), et).astimezone(dt.timezone.utc)
-    hi = dt.datetime.combine(end_d, dt.time(14, 0), et).astimezone(dt.timezone.utc)
-    print(f"window: {lo.isoformat()} .. {hi.isoformat()}")
-    wanted = set(cats.split("+"))
+def parse_listing(html, wanted):
+    """Parse an arxiv.org/list/<cat>/new page into (announce_date, papers)."""
+    day = None
+    m = re.search(r"(?:listings|submissions) for \w+,?\s+(\d{1,2})\s+(\w+)\s+(\d{2,4})", html, re.I)
+    if m:
+        mon = MONTHS.get(m.group(2).lower()) or next((v for k, v in MONTHS.items() if k.startswith(m.group(2).lower()[:3])), None)
+        yr = int(m.group(3)); yr += 2000 if yr < 100 else 0
+        if mon:
+            day = dt.date(yr, mon, int(m.group(1))).isoformat()
+    # section boundaries (New submissions / Cross-lists / Replacements)
+    marks = sorted((mm.start(), kind) for kind, pat in
+                   [("new", r"<h3[^>]*>\s*New submissions"), ("cross", r"<h3[^>]*>\s*Cross"), ("replace", r"<h3[^>]*>\s*Replacement")]
+                   for mm in re.finditer(pat, html, re.I))
     papers = {}
-    for cat in cats.split("+"):
-        for n in range(max_pages):
-            params = urllib.parse.urlencode({"search_query": f"cat:{cat}", "start": n * page, "max_results": page,
-                                             "sortBy": "submittedDate", "sortOrder": "descending"}, safe=":")
-            raw = parse_only if parse_only is not None else download(f"https://export.arxiv.org/api/query?{params}")
-            entries = ET.fromstring(raw).findall("a:entry", ATOM)
-            oldest = None
-            for e in entries:
-                published, p = _entry(e, wanted)
-                if p is None:
-                    continue
-                oldest = published if oldest is None else min(oldest, published)
-                if lo <= published < hi:
-                    papers[p["id"]] = p
-            if parse_only is not None:
-                break
-            time.sleep(3)  # arXiv API etiquette: at most one request every 3 seconds
-            if not entries or (oldest is not None and oldest < lo):
-                break
-        else:
-            print(f"warning: {cat} hit max_pages before reaching the window start", file=sys.stderr)
-        print(f"{cat}: {len(papers)} papers in window so far")
-        if parse_only is not None:
-            break
-    return day_str, list(papers.values())
+    for dtm in re.finditer(r"<dt>(.*?)</dt>\s*<dd>(.*?)</dd>", html, re.S):
+        idm = re.search(r"arXiv:(\d{4}\.\d{4,5})", dtm.group(1))
+        if not idm:
+            continue
+        dd = dtm.group(2)
+        section = "new"
+        for pos, kind in marks:
+            if pos < dtm.start():
+                section = kind
+        title = re.search(r"list-title[^>]*>(.*?)</div>", dd, re.S)
+        authors = re.search(r"list-authors[^>]*>(.*?)</div>", dd, re.S)
+        subjects = re.search(r"list-subjects[^>]*>(.*?)</div>", dd, re.S)
+        primary = re.search(r"primary-subject[^>]*>(.*?)</span>", dd, re.S)
+        abstract = re.search(r"<p class=['\"]mathjax['\"]>(.*?)</p>", dd, re.S)
+        cats = re.findall(r"\(([a-z\-]+(?:\.[A-Za-z\-]+)?)\)", _text(subjects.group(1))) if subjects else []
+        prim = re.findall(r"\(([a-z\-]+(?:\.[A-Za-z\-]+)?)\)", _text(primary.group(1))) if primary else cats[:1]
+        if section != "replace":
+            section = "new" if (prim and prim[0] in wanted) else "cross"
+        pid = idm.group(1)
+        prev = papers.get(pid)
+        if prev and prev["announce_type"] == "new":
+            continue
+        papers[pid] = {
+            "id": pid,
+            "url": f"https://arxiv.org/abs/{pid}",
+            "title": re.sub(r"^Title:\s*", "", _text(title.group(1))) if title else "",
+            "authors": re.sub(r"^Authors?:\s*", "", _text(authors.group(1))) if authors else "",
+            "categories": cats,
+            "announce_type": section,
+            "abstract": _text(abstract.group(1)) if abstract else "",
+        }
+    return day, papers
+
+
+def fetch_listing(cats, expect=None, save_raw=None):
+    """Most recent announcement from the arxiv.org/list/<cat>/new pages (allowed by robots.txt,
+    15 s crawl delay). Useful on weekends and as a same-day fallback when the RSS feed fails.
+    It only ever covers the latest announcement; older days cannot be recovered this way."""
+    wanted = set(cats.split("+"))
+    papers, days = {}, set()
+    for i, cat in enumerate(cats.split("+")):
+        if i:
+            time.sleep(16)
+        html = download(f"https://arxiv.org/list/{cat}/new?skip=0&show=2000").decode("utf-8", "replace")
+        if save_raw:
+            pathlib.Path(save_raw).mkdir(parents=True, exist_ok=True)
+            (pathlib.Path(save_raw) / f"{cat}.html").write_text(html[:200000])
+        day, ps = parse_listing(html, wanted)
+        print(f"{cat}: announce date {day}, {len(ps)} entries")
+        days.add(day)
+        for pid, p in ps.items():
+            if pid not in papers or (p["announce_type"] == "new" and papers[pid]["announce_type"] != "new"):
+                papers[pid] = p
+    days.discard(None)
+    if len(days) != 1:
+        raise SystemExit(f"could not determine a single announce date from listings: {days}")
+    day = days.pop()
+    if expect and expect != day:
+        raise SystemExit(f"requested {expect} but the latest listing is {day}; older days cannot be recovered")
+    return day, list(papers.values())
 
 
 def write(day, papers, out):
@@ -170,12 +182,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cats", default="cs.AI+cs.CL+cs.GT+cs.LG")
     ap.add_argument("--from-file")
-    ap.add_argument("--date", help="backfill a past announcement date (YYYY-MM-DD) via the arXiv API")
+    ap.add_argument("--listing", action="store_true", help="read the latest announcement from arxiv.org/list/<cat>/new instead of RSS")
+    ap.add_argument("--expect", help="with --listing: fail unless the latest announcement is this date (YYYY-MM-DD)")
+    ap.add_argument("--save-raw", help="with --listing: save raw HTML here for debugging")
     ap.add_argument("--out", default="data")
     a = ap.parse_args()
-    if a.date:
-        raw = pathlib.Path(a.from_file).read_bytes() if a.from_file else None
-        day, papers = backfill(a.date, a.cats, parse_only=raw)
+    if a.listing and a.from_file:
+        day, ps = parse_listing(pathlib.Path(a.from_file).read_text(), set(a.cats.split("+")))
+        papers = list(ps.values())
+    elif a.listing:
+        day, papers = fetch_listing(a.cats, a.expect, a.save_raw)
     else:
         raw = pathlib.Path(a.from_file).read_bytes() if a.from_file else download(f"https://rss.arxiv.org/rss/{a.cats}")
         day, papers = parse(raw)
