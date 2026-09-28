@@ -1,4 +1,4 @@
-run: push Mon Sep 28 03:25:02 UTC 2026
+run: push Mon Sep 28 03:27:12 UTC 2026
 GET https://arxiv.org/list/cs.AI/new?skip=0&show=2000
 GET https://arxiv.org/list/cs.CL/new?skip=0&show=2000
 GET https://arxiv.org/list/cs.GT/new?skip=0&show=2000
@@ -7,4 +7,4 @@ cs.AI: announce date 2026-09-28, 331 entries
 cs.CL: announce date 2026-09-28, 132 entries
 cs.GT: announce date 2026-09-28, 15 entries
 cs.LG: announce date 2026-09-28, 332 entries
-requested 2026-09-25 but the latest listing is 2026-09-28; older days cannot be recovered
+wrote data/2026-09-28.jsonl: 649 papers {'new': 276, 'cross': 132, 'replace': 241}
