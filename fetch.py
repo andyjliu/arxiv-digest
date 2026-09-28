@@ -88,55 +88,67 @@ def prev_weekday(d):
     return d
 
 
-def backfill(day_str, cats, parse_only=None):
+def _entry(e, wanted):
+    m = re.search(r"(\d{4}\.\d{4,5})", e.findtext("a:id", namespaces=ATOM) or "")
+    if not m:
+        return None, None
+    prim = e.find("arxiv:primary_category", ATOM)
+    prim = prim.get("term") if prim is not None else ""
+    published = dt.datetime.fromisoformat((e.findtext("a:published", namespaces=ATOM) or "").replace("Z", "+00:00"))
+    return published, {
+        "id": m.group(1),
+        "url": f"https://arxiv.org/abs/{m.group(1)}",
+        "title": re.sub(r"\s+", " ", (e.findtext("a:title", namespaces=ATOM) or "").strip()),
+        "authors": ", ".join(a.findtext("a:name", namespaces=ATOM) or "" for a in e.findall("a:author", ATOM)),
+        "categories": [c.get("term") for c in e.findall("a:category", ATOM)],
+        "announce_type": "new" if prim in wanted else "cross",
+        "abstract": re.sub(r"\s+", " ", (e.findtext("a:summary", namespaces=ATOM) or "").strip()),
+    }
+
+
+def backfill(day_str, cats, parse_only=None, page=300, max_pages=40):
     """Approximate a past announcement via the arXiv API.
 
     The mailing announced on weekday D contains papers submitted between 14:00 ET on the
-    weekday before the previous weekday and 14:00 ET on the previous weekday. Papers are
-    matched on their v1 submission date, so replacements are excluded. A paper whose
-    primary category is in `cats` is labelled "new"; otherwise it is labelled "cross".
-    Papers that arXiv held or delayed are missed.
+    weekday before the previous weekday and 14:00 ET on the previous weekday. arXiv's CDN
+    rejects submittedDate range queries (HTTP 406), so instead each category is listed
+    newest-first and paged back until past the window, keeping papers whose v1 submission
+    time falls inside it (so replacements are excluded). A paper whose primary category is in
+    `cats` is labelled "new", otherwise "cross". Papers arXiv held or delayed are missed.
     """
     et = ZoneInfo("America/New_York")
     day = dt.date.fromisoformat(day_str)
     end_d = prev_weekday(day)
     start_d = prev_weekday(end_d)
-    to_utc = lambda d: dt.datetime.combine(d, dt.time(14, 0), et).astimezone(dt.timezone.utc).strftime("%Y%m%d%H%M")
-    catq = " OR ".join(f"cat:{c}" for c in cats.split("+"))
-    q = f"({catq}) AND submittedDate:[{to_utc(start_d)} TO {to_utc(end_d)}]"
+    lo = dt.datetime.combine(start_d, dt.time(14, 0), et).astimezone(dt.timezone.utc)
+    hi = dt.datetime.combine(end_d, dt.time(14, 0), et).astimezone(dt.timezone.utc)
+    print(f"window: {lo.isoformat()} .. {hi.isoformat()}")
     wanted = set(cats.split("+"))
-    papers, start, total = {}, 0, None
-    while total is None or start < total:
-        # urlencode percent-encodes ( ) [ ] and turns spaces into '+'; raw brackets get a 406 from arXiv's CDN
-        params = urllib.parse.urlencode({"search_query": q, "start": start, "max_results": 500,
-                                         "sortBy": "submittedDate", "sortOrder": "ascending"}, safe=":")
-        url = f"https://export.arxiv.org/api/query?{params}"
-        raw = parse_only if parse_only is not None else download(url)
-        root = ET.fromstring(raw)
-        total = int(root.findtext("os:totalResults", namespaces=ATOM) or 0)
-        entries = root.findall("a:entry", ATOM)
-        for e in entries:
-            m = re.search(r"(\d{4}\.\d{4,5})", e.findtext("a:id", namespaces=ATOM) or "")
-            if not m:
-                continue
-            pid = m.group(1)
-            prim = e.find("arxiv:primary_category", ATOM)
-            prim = prim.get("term") if prim is not None else ""
-            cats_e = [c.get("term") for c in e.findall("a:category", ATOM)]
-            papers[pid] = {
-                "id": pid,
-                "url": f"https://arxiv.org/abs/{pid}",
-                "title": re.sub(r"\s+", " ", (e.findtext("a:title", namespaces=ATOM) or "").strip()),
-                "authors": ", ".join(a.findtext("a:name", namespaces=ATOM) or "" for a in e.findall("a:author", ATOM)),
-                "categories": cats_e,
-                "announce_type": "new" if prim in wanted else "cross",
-                "abstract": re.sub(r"\s+", " ", (e.findtext("a:summary", namespaces=ATOM) or "").strip()),
-            }
-        if parse_only is not None or not entries:
+    papers = {}
+    for cat in cats.split("+"):
+        for n in range(max_pages):
+            params = urllib.parse.urlencode({"search_query": f"cat:{cat}", "start": n * page, "max_results": page,
+                                             "sortBy": "submittedDate", "sortOrder": "descending"}, safe=":")
+            raw = parse_only if parse_only is not None else download(f"https://export.arxiv.org/api/query?{params}")
+            entries = ET.fromstring(raw).findall("a:entry", ATOM)
+            oldest = None
+            for e in entries:
+                published, p = _entry(e, wanted)
+                if p is None:
+                    continue
+                oldest = published if oldest is None else min(oldest, published)
+                if lo <= published < hi:
+                    papers[p["id"]] = p
+            if parse_only is not None:
+                break
+            time.sleep(3)  # arXiv API etiquette: at most one request every 3 seconds
+            if not entries or (oldest is not None and oldest < lo):
+                break
+        else:
+            print(f"warning: {cat} hit max_pages before reaching the window start", file=sys.stderr)
+        print(f"{cat}: {len(papers)} papers in window so far")
+        if parse_only is not None:
             break
-        start += len(entries)
-        time.sleep(3)  # arXiv API etiquette
-    print(f"API: totalResults={total}, parsed={len(papers)}")
     return day_str, list(papers.values())
 
 

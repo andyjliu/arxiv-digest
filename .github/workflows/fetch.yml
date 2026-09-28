@@ -36,13 +36,14 @@ jobs:
           for u in \
             "https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG" \
             "https://export.arxiv.org/api/query?search_query=cat:cs.AI&max_results=1" \
+            "https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=1" \
+            "https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29&max_results=1" \
+            "https://export.arxiv.org/api/query?search_query=submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1" \
             "https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29+AND+submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1"; do
             echo "== curl $u"
             curl -g -sS -o /tmp/body -w "status=%{http_code}\n" -A "arxiv-digest/1.1 (personal research digest)" "$u"
             head -c 200 /tmp/body; echo
           done
-          echo "== python urllib, same encoded date query"
-          python -c "import fetch; print(fetch.download('https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29+AND+submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1', tries=1)[:200])" 2>&1 || true
           } 2>&1 | tee logs/diag.txt
       - name: Fetch
         env:

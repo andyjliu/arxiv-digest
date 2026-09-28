@@ -1,2 +1,2 @@
-# retry with logging
+# retry: newest-first paging, no date query
 2026-09-25
