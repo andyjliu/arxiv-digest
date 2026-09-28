@@ -1,15 +1,10 @@
-GET https://export.arxiv.org/api/query?search_query=cat:cs.AI&start=0&max_results=300&sortBy=submittedDate&sortOrder=descending
-attempt 1 failed: HTTP 406 Not Acceptable
-  headers: {'Connection': 'close', 'cache-control': 'private, no-store', 'Accept-Ranges': 'bytes', 'Via': '1.1 varnish, 1.1 varnish', 'Date': 'Mon, 28 Sep 2026 03:20:59 GMT', 'X-Served-By': 'cache-lga-kjfk8660052-LGA, cache-lga-kjfk8660041-LGA, cache-iad-kcgs7200097-IAD', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1790565659.311217,VS0,VE17', 'Strict-Transport-Security': 'max-age=300', 'transfer-encoding': 'chunked'}
-  body: 
-attempt 2 failed: HTTP 406 Not Acceptable
-  headers: {'Connection': 'close', 'cache-control': 'private, no-store', 'Accept-Ranges': 'bytes', 'Via': '1.1 varnish, 1.1 varnish', 'Date': 'Mon, 28 Sep 2026 03:21:09 GMT', 'X-Served-By': 'cache-lga-kjfk8660024-LGA, cache-lga-kjfk8660041-LGA, cache-iad-kcgs7200097-IAD', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1790565669.341168,VS0,VE21', 'Strict-Transport-Security': 'max-age=300', 'transfer-encoding': 'chunked'}
-  body: 
-attempt 3 failed: HTTP 406 Not Acceptable
-  headers: {'Connection': 'close', 'cache-control': 'private, no-store', 'Accept-Ranges': 'bytes', 'Via': '1.1 varnish, 1.1 varnish', 'Date': 'Mon, 28 Sep 2026 03:21:29 GMT', 'X-Served-By': 'cache-lga-kjfk8660063-LGA, cache-lga-kjfk8660041-LGA, cache-iad-kcgs7200097-IAD', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1790565689.422151,VS0,VE17', 'Strict-Transport-Security': 'max-age=300', 'transfer-encoding': 'chunked'}
-  body: 
-attempt 4 failed: HTTP 406 Not Acceptable
-  headers: {'Connection': 'close', 'cache-control': 'private, no-store', 'Accept-Ranges': 'bytes', 'Via': '1.1 varnish, 1.1 varnish', 'Date': 'Mon, 28 Sep 2026 03:21:59 GMT', 'X-Served-By': 'cache-lga-kjfk8660052-LGA, cache-lga-kjfk8660041-LGA, cache-iad-kcgs7200097-IAD', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1790565719.450668,VS0,VE20', 'Strict-Transport-Security': 'max-age=300', 'transfer-encoding': 'chunked'}
-  body: 
-window: 2026-09-23T18:00:00+00:00 .. 2026-09-24T18:00:00+00:00
-could not download feed
+run: push Mon Sep 28 03:25:02 UTC 2026
+GET https://arxiv.org/list/cs.AI/new?skip=0&show=2000
+GET https://arxiv.org/list/cs.CL/new?skip=0&show=2000
+GET https://arxiv.org/list/cs.GT/new?skip=0&show=2000
+GET https://arxiv.org/list/cs.LG/new?skip=0&show=2000
+cs.AI: announce date 2026-09-28, 331 entries
+cs.CL: announce date 2026-09-28, 132 entries
+cs.GT: announce date 2026-09-28, 15 entries
+cs.LG: announce date 2026-09-28, 332 entries
+requested 2026-09-25 but the latest listing is 2026-09-28; older days cannot be recovered
