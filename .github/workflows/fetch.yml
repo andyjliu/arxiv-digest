@@ -33,9 +33,9 @@ jobs:
           for u in \
             "https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG" \
             "https://export.arxiv.org/api/query?search_query=cat:cs.AI&max_results=1" \
-            "https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29+AND+submittedDate:[202609231800+TO+202609241800]&max_results=1"; do
+            "https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29+AND+submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1"; do
             echo "== $u"
-            curl -sS -o /tmp/body -D - -A "arxiv-digest/1.1 (personal research digest)" "$u" | head -15
+            curl -g -sS -o /tmp/body -D - -A "arxiv-digest/1.1 (personal research digest)" "$u" | head -15
             head -c 300 /tmp/body; echo
           done
       - name: Fetch

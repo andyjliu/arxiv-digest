@@ -1,2 +1,2 @@
-# retry after 406 fix
+# retry after URL-encoding fix
 2026-09-25

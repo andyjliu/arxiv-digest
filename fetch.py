@@ -7,7 +7,7 @@ Stdlib only. Exits 0 without writing if the feed is empty (weekends / holidays).
 Usage: python fetch.py [--cats cs.AI+cs.CL+cs.GT+cs.LG] [--from-file feed.xml]
        python fetch.py --date 2026-09-25   # backfill a past announcement via the arXiv API
 """
-import argparse, datetime as dt, email.utils, json, pathlib, re, sys, time, urllib.error, urllib.request
+import argparse, datetime as dt, email.utils, json, pathlib, re, sys, time, urllib.error, urllib.parse, urllib.request
 import xml.etree.ElementTree as ET
 from zoneinfo import ZoneInfo
 
@@ -102,14 +102,15 @@ def backfill(day_str, cats, parse_only=None):
     end_d = prev_weekday(day)
     start_d = prev_weekday(end_d)
     to_utc = lambda d: dt.datetime.combine(d, dt.time(14, 0), et).astimezone(dt.timezone.utc).strftime("%Y%m%d%H%M")
-    catq = "+OR+".join(f"cat:{c}" for c in cats.split("+"))
-    q = f"({catq})+AND+submittedDate:[{to_utc(start_d)}+TO+{to_utc(end_d)}]"
-    q = q.replace("(", "%28").replace(")", "%29")
+    catq = " OR ".join(f"cat:{c}" for c in cats.split("+"))
+    q = f"({catq}) AND submittedDate:[{to_utc(start_d)} TO {to_utc(end_d)}]"
     wanted = set(cats.split("+"))
     papers, start, total = {}, 0, None
     while total is None or start < total:
-        url = (f"https://export.arxiv.org/api/query?search_query={q}&start={start}&max_results=500"
-               f"&sortBy=submittedDate&sortOrder=ascending")
+        # urlencode percent-encodes ( ) [ ] and turns spaces into '+'; raw brackets get a 406 from arXiv's CDN
+        params = urllib.parse.urlencode({"search_query": q, "start": start, "max_results": 500,
+                                         "sortBy": "submittedDate", "sortOrder": "ascending"}, safe=":")
+        url = f"https://export.arxiv.org/api/query?{params}"
         raw = parse_only if parse_only is not None else download(url)
         root = ET.fromstring(raw)
         total = int(root.findtext("os:totalResults", namespaces=ATOM) or 0)
