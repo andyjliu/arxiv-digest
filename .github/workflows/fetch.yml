@@ -41,7 +41,7 @@ jobs:
           elif [ "${{ github.event_name }}" = "push" ] && [ -f requests/backfill.txt ]; then
             # Only the most recent announcement can be recovered (from the /list/<cat>/new pages).
             d=$(grep -Eo '^[0-9]{4}-[0-9]{2}-[0-9]{2}' requests/backfill.txt | tail -1)
-            python fetch.py --cats "$CATS" --listing ${d:+--expect "$d"}
+            python fetch.py --cats "$CATS" --listing ${d:+--expect "$d"} --save-raw logs/raw
             git rm -q requests/backfill.txt
           else
             # RSS first; if it errors, fall back to the listing pages for the same announcement.
