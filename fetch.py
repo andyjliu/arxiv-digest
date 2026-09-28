@@ -7,23 +7,31 @@ Stdlib only. Exits 0 without writing if the feed is empty (weekends / holidays).
 Usage: python fetch.py [--cats cs.AI+cs.CL+cs.GT+cs.LG] [--from-file feed.xml]
        python fetch.py --date 2026-09-25   # backfill a past announcement via the arXiv API
 """
-import argparse, datetime as dt, email.utils, json, pathlib, re, sys, time, urllib.request
+import argparse, datetime as dt, email.utils, json, pathlib, re, sys, time, urllib.error, urllib.request
 import xml.etree.ElementTree as ET
 from zoneinfo import ZoneInfo
 
 NS = {"arxiv": "http://arxiv.org/schemas/atom", "dc": "http://purl.org/dc/elements/1.1/"}
-UA = "arxiv-digest/1.0 (personal daily digest; mailto:andyliu@cs.cmu.edu)"
+HEADERS = {
+    "User-Agent": "arxiv-digest/1.1 (personal research digest)",
+    "Accept": "application/atom+xml, application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",
+}
 
 
 def download(url, tries=4):
+    print(f"GET {url}", file=sys.stderr)
     for i in range(tries):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            req = urllib.request.Request(url, headers=HEADERS)
             with urllib.request.urlopen(req, timeout=60) as r:
                 return r.read()
+        except urllib.error.HTTPError as e:
+            body = e.read()[:800].decode("utf-8", "replace")
+            print(f"attempt {i+1} failed: HTTP {e.code} {e.reason}\n  headers: {dict(e.headers)}\n  body: {body}",
+                  file=sys.stderr)
         except Exception as e:  # noqa: BLE001
-            print(f"attempt {i+1} failed: {e}", file=sys.stderr)
-            time.sleep(10 * (i + 1))
+            print(f"attempt {i+1} failed: {e!r}", file=sys.stderr)
+        time.sleep(10 * (i + 1))
     raise SystemExit("could not download feed")
 
 
