@@ -1,4 +1,4 @@
-run: push Mon Sep 28 03:13:53 UTC 2026
+run: push Mon Sep 28 03:16:43 UTC 2026
 == curl https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG
 status=200
 <?xml version='1.0' encoding='UTF-8'?>
@@ -8,12 +8,17 @@ status=200
 <?xml version='1.0' encoding='UTF-8'?>
 <feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
   <id>https://arxi
+== curl https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=1
+status=200
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxi
+== curl https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29&max_results=1
+status=406
+
+== curl https://export.arxiv.org/api/query?search_query=submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1
+status=406
+
 == curl https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29+AND+submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1
 status=406
 
-== python urllib, same encoded date query
-GET https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29+AND+submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1
-attempt 1 failed: HTTP 406 Not Acceptable
-  headers: {'Connection': 'close', 'cache-control': 'private, no-store', 'Accept-Ranges': 'bytes', 'Via': '1.1 varnish, 1.1 varnish', 'Date': 'Mon, 28 Sep 2026 03:13:54 GMT', 'X-Served-By': 'cache-lga-kjfk8660039-LGA, cache-lga-kjfk8660039-LGA, cache-chi-kmdw8640086-CHI', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1790565234.193322,VS0,VE25', 'Strict-Transport-Security': 'max-age=300', 'transfer-encoding': 'chunked'}
-  body: 
-could not download feed
