@@ -1,0 +1,31 @@
+name: fetch-arxiv
+
+on:
+  schedule:
+    # arXiv mailings post ~20:00 ET Sun-Thu; the RSS feed for them is built ~00:00 ET Mon-Fri.
+    # Two runs for resilience (GitHub cron can be delayed or skipped); the second is a no-op if nothing changed.
+    - cron: "17 6 * * 1-5"
+    - cron: "17 10 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch today's announcement
+        run: python fetch.py --cats "cs.AI+cs.CL+cs.GT+cs.LG"
+      - name: Commit if changed
+        run: |
+          git config user.name "arxiv-digest-bot"
+          git config user.email "arxiv-digest-bot@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "data: $(cat data/LATEST)"
+          git push
