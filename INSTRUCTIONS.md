@@ -29,6 +29,7 @@ You are running unattended. Nobody will answer questions. Do the whole job, then
    - `Why`: 1–2 sentences on what the paper does and specifically how it bears on the project. Be concrete and don't hype.
    Batch several pages into each create call.
 8. **Log it.** Append one line to the end of the run log: `D — screened N — picks H high / M medium`. Add it even when there are zero picks.
+   Also, on every run, including runs that process nothing or stop early for any reason, append a final line `run <UTC timestamp>: <one-line outcome>` (for example `run 2026-09-29T12:08Z: nothing new`). If you stop because of an error, make that line say what failed. If Notion itself is unreachable, say so in the summary instead.
 9. **Summarize.** Finish with at most ~8 lines per processed date: date D; how many papers were screened; how many picks, split into High and Medium; the High picks' titles. If there were no picks, say so.
 
 ## Rules
