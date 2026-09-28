@@ -1,2 +1,2 @@
-# retry after URL-encoding fix
+# retry with logging
 2026-09-25
