@@ -1,24 +1,22 @@
-run: push Mon Sep 28 03:16:43 UTC 2026
-== curl https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG
-status=200
-<?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.
-== curl https://export.arxiv.org/api/query?search_query=cat:cs.AI&max_results=1
-status=200
-<?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
-  <id>https://arxi
+run: push Mon Sep 28 03:20:24 UTC 2026
 == curl https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=1
-status=200
-<?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
-  <id>https://arxi
-== curl https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29&max_results=1
-status=406
-
-== curl https://export.arxiv.org/api/query?search_query=submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1
-status=406
-
-== curl https://export.arxiv.org/api/query?search_query=%28cat:cs.AI+OR+cat:cs.CL%29+AND+submittedDate:%5B202609231800+TO+202609241800%5D&max_results=1
-status=406
-
+status=200 bytes=3612
+== curl https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&start=0&max_results=1
+status=406 bytes=0
+== curl https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=50
+status=200 bytes=122464
+== curl https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=100
+status=406 bytes=0
+== curl https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=200
+status=406 bytes=0
+== curl https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=300
+status=406 bytes=0
+== curl https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&start=300&max_results=100
+status=406 bytes=0
+== python urllib max_results=1
+GET https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=1
+3612
+== python urllib max_results=100
+GET https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=100
+attempt 1 failed: HTTP 406 Not Acceptable
+could not download feed
