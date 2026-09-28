@@ -23,7 +23,7 @@ You are running unattended. Nobody will answer questions. Do the whole job, then
    - `Authors`: the author string, truncated after 8 authors with ", et al."
    - `date:Announced:start`: D, with `date:Announced:is_datetime` = 0
    - `Categories`: the paper's categories, restricted to cs.AI, cs.CL, cs.GT and cs.LG
-   - `Projects`: the exact `##` heading names of the matched projects. If a heading contains a parenthetical, use only the text before it. New option names are fine.
+   - `Projects`: the exact `##` heading names of the matched projects, trimmed of surrounding whitespace. If a heading contains a parenthetical, use only the text before it. Notion rejects values that aren't already options. Before creating rows, fetch the data source schema. If any project name is missing from the `Projects` options, add it with `update-data-source` (`ALTER COLUMN "Projects" SET MULTI_SELECT(...)`, listing all existing options plus the new ones).
    - `Relevance`: High or Medium
    - `Status`: New
    - `Why`: 1–2 sentences on what the paper does and specifically how it bears on the project. Be concrete and don't hype.
