@@ -1,3 +1,3 @@
-run: schedule Tue Sep 29 14:02:48 UTC 2026
+run: schedule Tue Sep 29 15:56:13 UTC 2026
 GET https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG
 wrote data/2026-09-29.jsonl: 2000 papers {'new': 1364, 'cross': 478, 'replace': 158}
