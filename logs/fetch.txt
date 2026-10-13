@@ -1,3 +1,3 @@
-run: schedule Mon Oct 12 19:59:41 UTC 2026
+run: schedule Tue Oct 13 12:42:06 UTC 2026
 GET https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG
-wrote data/2026-10-12.jsonl: 721 papers {'new': 309, 'cross': 138, 'replace': 180, 'replace-cross': 94}
+no papers (no announcement today?); nothing written
