@@ -1,3 +1,3 @@
-run: schedule Fri Oct 16 15:00:00 UTC 2026
+run: schedule Mon Oct 19 10:45:32 UTC 2026
 GET https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG
-wrote data/2026-10-16.jsonl: 896 papers {'new': 410, 'cross': 161, 'replace': 225, 'replace-cross': 100}
+wrote data/2026-10-19.jsonl: 769 papers {'new': 333, 'cross': 118, 'replace': 207, 'replace-cross': 111}
