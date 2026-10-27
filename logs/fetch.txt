@@ -1,3 +1,3 @@
-run: schedule Tue Oct 27 10:32:07 UTC 2026
+run: schedule Tue Oct 27 13:10:45 UTC 2026
 GET https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG
 wrote data/2026-10-27.jsonl: 1389 papers {'new': 569, 'cross': 299, 'replace': 345, 'replace-cross': 176}
