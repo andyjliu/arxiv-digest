@@ -101,6 +101,8 @@ def sim(a, b):
     a, b = norm_title(a), norm_title(b)
     if not a or not b:
         return 0.0
+    if a == b:
+        return 1.0
     if a in b or b in a:
         return 0.95 if min(len(a), len(b)) > 25 else 0.0  # same title, with or without a subtitle
     return SequenceMatcher(None, a, b).ratio()
