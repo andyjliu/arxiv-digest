@@ -40,7 +40,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-editlens-roberta-large
+          key: hf-editlens-${{ github.run_id }}
+          restore-keys: hf-editlens-
       - uses: actions/cache@v4
         with:
           path: deslop/.cache

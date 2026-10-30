@@ -122,6 +122,27 @@ class T(unittest.TestCase):
             check.get = orig
         self.assertEqual(out[0]["status"], "lookup failed")
 
+    def test_miss_on_non_paper_is_not_evidence(self):
+        def fake_get(url, *a, **k):
+            class R:
+                status_code = 200
+                json = staticmethod(lambda: {"results": [], "message": {"items": []}, "data": []})
+            return R()
+        refs = [{"text": t, "links": [], "blocks": ["A.", "A plausible title of four words"]}
+                for t in ("Vendor. A plausible title of four words. Company blog, 2026.",
+                          "A. Author. A plausible title of four words. Journal of Things 3(2), pp. 1-9.")]
+        orig_get, orig_sleep = check.get, check.time.sleep
+        check.get, check.time.sleep = fake_get, lambda s: None
+        try:
+            out = check.check_refs(refs)
+        finally:
+            check.get, check.time.sleep = orig_get, orig_sleep
+        self.assertEqual([o["status"] for o in out], ["not a paper", "not found"])
+
+    def test_sim_ignores_subtitle(self):
+        self.assertGreaterEqual(check.sim("Language agents as optimizable graphs",
+                                          "GPTSwarm: Language agents as optimizable graphs"), check.TITLE_MATCH)
+
     def test_summary_has_no_paper_ids(self):
         res = [{"id": "2610.99999", "action": "drop", "refs": [{"status": "not found"}]}]
         text = check.summary(res)

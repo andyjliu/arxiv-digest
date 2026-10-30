@@ -41,6 +41,10 @@ CACHE = {}  # normalized title -> [source, title, score], for titles confirmed f
 DROP_MIN_FAILED_REFS = 3
 DROP_MIN_FAILED_FRAC = 0.10
 TITLE_MATCH = 0.88  # normalized title similarity needed to count as found
+# Fabricated citations imitate papers. Vendor posts, regulations, repos and books are
+# absent from these databases anyway, so a miss only counts for a paper-like reference.
+PAPER_LIKE_RE = re.compile(r"\bpp?\.\s*\d|\d+\s*\(\d+\)|\bvol\.|\barxiv\b|\bproceedings\b|\bproc\.|\bconference\b"
+                           r"|\bworkshop\b|\bsymposium\b|\bjournal\b|\btransactions\b|\breview\b|\bletters\b", re.I)
 # Tier 2. EditLens score = expected bucket / (n_buckets - 1), 0 = human, 1 = AI.
 # Placeholders until calibrated on Andy's labels. Use the median over chunks so
 # one quoted prompt or boilerplate paragraph can't flag a paper alone.
@@ -98,7 +102,7 @@ def sim(a, b):
     if not a or not b:
         return 0.0
     if a in b or b in a:
-        return min(len(a), len(b)) / max(len(a), len(b)) if min(len(a), len(b)) > 25 else 0.0
+        return 0.95 if min(len(a), len(b)) > 25 else 0.0  # same title, with or without a subtitle
     return SequenceMatcher(None, a, b).ratio()
 
 
@@ -289,6 +293,8 @@ def check_refs(refs):
         o["best_match"], o["best_score"] = t, round(s, 3)
         if s >= TITLE_MATCH:
             o["status"], o["how"] = "found", src
+        elif answered and not PAPER_LIKE_RE.search(o["text"]):
+            o["status"], o["how"] = "not a paper", src or "none"
         elif answered:
             o["status"], o["how"] = "not found", src or "none"
         else:  # an API failure is not evidence against the reference
@@ -386,7 +392,7 @@ def run(ids, out, use_detector=True, cache_path=None):
         try:
             det = Detector()
         except Exception as e:  # e.g. gated access still pending; tier 1 must still run
-            det_error = type(e).__name__
+            det_error = f"{type(e).__name__}: {str(e)[:200]}"
     results = []
     for n, aid in enumerate(ids):
         if n:
@@ -424,7 +430,7 @@ def summary(results, use_detector=True, det_error=None):
     """Counts only, with no paper IDs, for the public job summary."""
     refs = [x for r in results for x in r["refs"]]
     counts = {a: sum(r["action"] == a for r in results) for a in ("keep", "flag", "drop", "unchecked")}
-    tally = {s: sum(x["status"] == s for x in refs) for s in ("found", "not found", "lookup failed", "skipped")}
+    tally = {s: sum(x["status"] == s for x in refs) for s in ("found", "not found", "not a paper", "lookup failed", "skipped")}
     scored = sum(bool((r.get("detector") or {}).get("body_scores")) for r in results)
     det = "off" if not use_detector else f"failed to load ({det_error})" if det_error else f"scored {scored} papers"
     return "\n".join([f"Papers: {len(results)}. Actions: {counts}.", f"References: {tally}.", f"Detector: {det}.", ""])
