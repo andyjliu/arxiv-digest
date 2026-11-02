@@ -1,21 +1,21 @@
-name: deslop-prototype
+name: deslop
 
-# Runs the slop check on a list of arXiv IDs and uploads the report.
-# It does not commit anything or touch Notion. The repo is public, so the job
-# summary and logs carry counts only; paper-level results stay in the artifact.
+# Checks the Notion "arXiv Daily Picks" rows whose Check is empty or Unchecked, and
+# writes Check / Check notes back. It never commits anything. The repo is public, so
+# the job summary and logs carry counts only; paper-level results go to Notion.
+# Started by hand with an ids_file, it checks those IDs instead, skips Notion, and
+# uploads the report as an artifact.
 on:
-  # A workflow_dispatch file must be on main to be started by hand, so run on pushes
-  # to the prototype branch instead.
-  push:
-    branches: [deslop-prototype]
-    paths:
-      - "deslop/**"
-      - ".github/workflows/deslop.yml"
+  schedule:
+    # After the scheduled Claude run has written the day's picks. Reruns are harmless:
+    # checked rows are skipped, so the second run catches picks written late.
+    - cron: "23 15 * * 1-5"
+    - cron: "23 21 * * 1-5"
   workflow_dispatch:
     inputs:
       ids_file:
-        description: "File with one arXiv ID per line"
-        default: "deslop/picks/2026-10-28.txt"
+        description: "File with one arXiv ID per line (leave empty to check Notion picks)"
+        default: ""
       detector:
         description: "Run the EditLens detector (tier 2)"
         type: boolean
@@ -24,10 +24,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: deslop
+
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120  # ~1 min per paper; the first run has a week of picks
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -40,8 +43,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-editlens-${{ github.run_id }}
-          restore-keys: hf-editlens-
+          key: hf-editlens-roberta-large-v1  # fixed: the weights don't change, so save once
       - uses: actions/cache@v4
         with:
           path: deslop/.cache
@@ -51,17 +53,21 @@ jobs:
         run: python -m unittest discover -s deslop/tests -v
       - name: Check
         env:
-          IDS_FILE: ${{ github.event.inputs.ids_file || 'deslop/picks/2026-10-28.txt' }}
+          IDS_FILE: ${{ github.event.inputs.ids_file }}
           DETECTOR: ${{ github.event.inputs.detector || 'true' }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
         run: |
           FLAG=""
           if [ "$DETECTOR" != "true" ]; then FLAG="--no-detector"; fi
-          python deslop/check.py --ids-file "$IDS_FILE" --out deslop/out --cache deslop/.cache/lookups.json $FLAG
-          cat deslop/out/summary.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$IDS_FILE" ]; then SRC=(--ids-file "$IDS_FILE"); else SRC=(--notion); fi
+          python deslop/check.py "${SRC[@]}" --out deslop/out --cache deslop/.cache/lookups.json $FLAG
+          cat deslop/out/summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
       - uses: actions/upload-artifact@v4
-        if: always()
+        # Only for hand-picked IDs: the artifact is downloadable by any signed-in user,
+        # and the Notion picks are private.
+        if: always() && github.event.inputs.ids_file != ''
         with:
           name: deslop-report
           path: deslop/out/

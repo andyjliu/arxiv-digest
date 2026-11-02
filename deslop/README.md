@@ -1,6 +1,8 @@
-# Slop check (prototype)
+# Slop check
 
-Not wired into the daily run. It runs on pushes to the `deslop-prototype` branch. Counts appear in the job summary, and paper-level results are in the `deslop-report` artifact, kept for 3 days. Logs and the summary carry no paper IDs because the repo is public, though any signed-in GitHub user can still download the artifact. The workflow never commits anything or touches Notion.
+`.github/workflows/deslop.yml` runs at 15:23 and 21:23 UTC on weekdays, after the scheduled Claude run has written the day's picks. It checks every "arXiv Daily Picks" row announced in the last 7 days whose `Check` is empty or `Unchecked`, and writes `Check` (OK / Flag / Drop / Unchecked) and `Check notes` back. It never changes `Status` or any other property, and never commits. It reads Notion through the `NOTION_TOKEN` secret, an integration shared only with that database.
+
+The repo is public, so the logs and job summary carry counts only, with no paper IDs. Started by hand with an `ids_file`, the workflow checks those IDs instead, skips Notion, and uploads the report as the `deslop-report` artifact (kept 3 days, downloadable by any signed-in GitHub user).
 
 What it checks, for each arXiv ID:
 

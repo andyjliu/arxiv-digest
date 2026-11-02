@@ -5,6 +5,7 @@ import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import check  # noqa: E402
+import notion  # noqa: E402
 
 LONG = " ".join(["word"] * 45)
 
@@ -154,6 +155,37 @@ class T(unittest.TestCase):
         ch = check.chunks_for(p)
         self.assertEqual(ch[0][0], "abstract")
         self.assertLessEqual(len([c for c in ch if c[0] == "body"]), check.MAX_CHUNKS)
+
+    def test_notes(self):
+        res = {"reasons": ["4/40 references not found"], "detector": {"body_median": 0.034, "body_max": 0.2},
+               "refs": [{"status": "not found", "title": f"Missing paper {i}"} for i in range(4)]}
+        text = check.notes(res)
+        self.assertIn("detector body median 0.03 (max 0.20)", text)
+        self.assertIn("not found: Missing paper 2", text)
+        self.assertNotIn("Missing paper 3", text)
+        self.assertIn("and 1 more", text)
+        self.assertEqual(check.notes({"reasons": [], "refs": []}), "no issues found")
+
+
+class N(unittest.TestCase):
+    def test_filter_retries_unchecked_within_lookback(self):
+        import datetime
+        f = notion.pending_filter(datetime.date(2026, 11, 2))
+        self.assertEqual(f["and"][0]["date"]["on_or_after"], "2026-10-26")
+        self.assertIn({"property": "Check", "select": {"is_empty": True}}, f["and"][1]["or"])
+        self.assertIn({"property": "Check", "select": {"equals": "Unchecked"}}, f["and"][1]["or"])
+
+    def test_row(self):
+        page = {"id": "p1", "properties": {"arXiv ID": {"rich_text": [{"plain_text": " 2610.36435 "}]}}}
+        self.assertEqual(notion.row(page), ("p1", "2610.36435"))
+        self.assertIsNone(notion.row({"id": "p2", "properties": {"arXiv ID": {"rich_text": []}}}))
+
+    def test_properties_touch_only_check_fields(self):
+        props = notion.properties("keep", "x" * 3000)
+        self.assertEqual(set(props), {"Check", "Check notes"})
+        self.assertEqual(props["Check"]["select"]["name"], "OK")
+        self.assertEqual(len(props["Check notes"]["rich_text"][0]["text"]["content"]), notion.NOTES_MAX)
+        self.assertEqual(set(notion.CHECK.values()), {"OK", "Flag", "Drop", "Unchecked"})  # the Notion options
 
 
 if __name__ == "__main__":

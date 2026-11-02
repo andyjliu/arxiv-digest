@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prototype slop check for arXiv picks (not wired into the daily run).
+"""Slop check for arXiv picks.
 
 Tier 1 (hard evidence, would DROP):
   - leftover chatbot text in the paper body or bibliography
@@ -11,8 +11,9 @@ Tier 2 (FLAG only):
 Usage:
   python deslop/check.py --ids 2610.36435 2610.37481 ... --out deslop/out
   python deslop/check.py --ids-file deslop/picks/2026-10-28.txt --out deslop/out [--no-detector]
+  python deslop/check.py --notion   # check unchecked Daily Picks rows, write Check / Check notes
 
-Writes <out>/report.md and <out>/results.json. Nothing is written to Notion.
+Writes <out>/report.md and <out>/results.json. Only --notion writes to Notion.
 """
 import argparse
 import json
@@ -399,7 +400,7 @@ def run(ids, out, use_detector=True, cache_path=None):
     for n, aid in enumerate(ids):
         if n:
             time.sleep(16)  # arxiv.org robots.txt Crawl-delay: 15
-        print(f"== {aid}", file=sys.stderr)
+        print(f"== paper {n + 1}/{len(ids)}", file=sys.stderr)  # no IDs: Actions logs are public
         res = {"id": aid, "leftovers": [], "refs": []}
         html, err = fetch_html(aid)
         if html is None:
@@ -426,6 +427,20 @@ def run(ids, out, use_detector=True, cache_path=None):
     (out / "report.md").write_text(report(results))
     (out / "summary.md").write_text(summary(results, use_detector, det_error))
     print((out / "summary.md").read_text())  # counts only: Actions logs are public
+    return results
+
+
+def notes(res):
+    """Check notes for the Notion row: the reasons, detector scores and up to 3 missing references."""
+    L = list(res["reasons"])
+    d = res.get("detector") or {}
+    if d.get("body_median") is not None:
+        L.append(f"detector body median {d['body_median']:.2f} (max {d['body_max']:.2f})")
+    bad = [x for x in res["refs"] if x["status"] == "not found"]
+    L += [f"not found: {x['title'][:120]}" for x in bad[:3]]
+    if len(bad) > 3:
+        L.append(f"... and {len(bad) - 3} more")
+    return "\n".join(L) or "no issues found"
 
 
 def summary(results, use_detector=True, det_error=None):
@@ -474,8 +489,22 @@ if __name__ == "__main__":
     ap.add_argument("--out", default="deslop/out")
     ap.add_argument("--no-detector", action="store_true")
     ap.add_argument("--cache", help="JSON file of confirmed reference lookups, kept across runs")
+    ap.add_argument("--notion", action="store_true", help="check unchecked Daily Picks rows and write results back")
     a = ap.parse_args()
     ids = list(a.ids)
     if a.ids_file:
         ids += [l.strip() for l in open(a.ids_file) if l.strip() and not l.startswith("#")]
-    run(ids, a.out, use_detector=not a.no_detector, cache_path=a.cache)
+    rows = []
+    if a.notion:
+        import notion
+        rows = notion.pending()
+        ids += [aid for _, aid in rows]
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        print("Nothing to check.")
+        sys.exit(0)
+    results = run(ids, a.out, use_detector=not a.no_detector, cache_path=a.cache)
+    if a.notion:
+        failed = notion.write(rows, results, notes)
+        print(f"Notion: updated {len(rows) - failed} rows, {failed} failed.")
+        sys.exit(1 if failed else 0)
