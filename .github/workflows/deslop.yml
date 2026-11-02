@@ -9,7 +9,7 @@ on:
   schedule:
     # After the scheduled Claude run has written the day's picks. Reruns are harmless:
     # checked rows are skipped, so the second run catches picks written late.
-    - cron: "23 15 * * 1-5"
+    - cron: "23 14 * * 1-5"
     - cron: "23 21 * * 1-5"
   workflow_dispatch:
     inputs:
