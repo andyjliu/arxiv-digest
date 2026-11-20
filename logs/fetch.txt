@@ -1,3 +1,3 @@
-run: schedule Fri Nov 20 16:06:08 UTC 2026
+run: schedule Fri Nov 20 17:51:11 UTC 2026
 GET https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG
 wrote data/2026-11-20.jsonl: 731 papers {'new': 300, 'cross': 163, 'replace': 169, 'replace-cross': 99}
