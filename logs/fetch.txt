@@ -1,3 +1,3 @@
-run: schedule Thu Nov 26 19:49:36 UTC 2026
+run: schedule Fri Nov 27 15:03:22 UTC 2026
 GET https://rss.arxiv.org/rss/cs.AI+cs.CL+cs.GT+cs.LG
-wrote data/2026-11-26.jsonl: 765 papers {'new': 302, 'cross': 189, 'replace': 174, 'replace-cross': 100}
+no papers (no announcement today?); nothing written
